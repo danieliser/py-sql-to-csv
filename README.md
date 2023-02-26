@@ -45,8 +45,9 @@ The tool is designed to be run as a cron job. It will sync all tables configured
 
 The tool accepts the following arguments:
 
-* `--config` - The path to the config file. Defaults to `config.json`.
-* `--output-path` - The path to the output directory. Defaults to `./output`.
+* `-c, --config` - The path to the config file. Defaults to `config.json`.
+* `-o, --output-path` - The path to the output directory. Defaults to `./output`.
+* `-v, --verbose` - Enable verbose logging.
 
 ## License
 
