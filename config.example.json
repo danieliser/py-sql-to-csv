@@ -1,0 +1,17 @@
+{
+    "db1": {
+        "ssh_host": "1.2.3.4",
+        "ssh_username": "sshuser",
+        "ssh_password": "sshpass",
+        "db_host": "127.0.0.1",
+        "db_username": "dbuser",
+        "db_password": "dbpass",
+        "db_name": "dbname",
+        "tables": {
+            "table1": {
+                "last_id": 0,
+                "output": "output/table1.csv"
+            }
+        }
+    }
+}
