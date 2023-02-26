@@ -130,6 +130,16 @@ for db_name, db_info in config.items():
 
                         offset += limit
 
+        # Wrote all rows to CSV file, print a message verifying the number of rows written to the file
+        print( 'Wrote {} rows to {}...'.format(rows_to_extract, csv_filename) )
+
+        # Verify the number of rows in the CSV file matches the number of rows in the table
+        csv_rows = pd.read_csv(csv_filename).shape[0]
+        if csv_rows == total_rows:
+            print( 'CSV file contains all rows from the table.' )
+        else:
+            print( 'WARNING: CSV file contains {} rows, but table contains {} rows.'.format(csv_rows, total_rows) )
+
         # Disconnect from the database
         database.disconnect()
 
