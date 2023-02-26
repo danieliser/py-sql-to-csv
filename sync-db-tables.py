@@ -11,8 +11,9 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Define the command-line arguments
 parser = argparse.ArgumentParser(description='Extract data from MySQL tables to CSV files.')
-parser.add_argument('--config', type=str, default=os.path.join(script_dir, 'config.json'), help='the configuration file to use')
-parser.add_argument('--output-path', type=str, default=os.path.join(script_dir, 'output'), help='the folder to output to')
+parser.add_argument('-c', '--config', type=str, default=os.path.join(script_dir, 'config.json'), help='the configuration file to use')
+parser.add_argument('-o', '--output-path', type=str, default=os.path.join(script_dir, 'output'), help='the folder to output to')
+parser.add_argument('-v', '--verbose', action='store_true', help='should the script print verbose output')
 args = parser.parse_args()
 
 # Open the configuration file and load the database and table information
