@@ -1,5 +1,5 @@
 import pandas as pd
-import pymysql
+from pymysql import connect
 import logging
 import sshtunnel
 from sshtunnel import SSHTunnelForwarder
@@ -10,6 +10,7 @@ class MySQLDB:
         self.tunnel = None
         self.connection = None
         self.verbose = verbose
+        self.cursor = None
 
     def open_ssh_tunnel(self):
         """Open an SSH tunnel and connect using a username and password.
@@ -40,13 +41,24 @@ class MySQLDB:
 
         local_port = self.tunnel.local_bind_port if self.tunnel else None
 
-        self.connection = pymysql.connect(
+        self.connection = connect(
             host=db_info['db_host'],
             user=db_info['db_username'],
             passwd=db_info['db_password'],
             db=db_info['db_name'],
             port=local_port
         )
+
+    def get_cursor(self):
+        """Get a cursor object to execute SQL queries on.
+
+        :return: Cursor object
+        """
+
+        if self.cursor is None:
+            self.cursor = self.connection.cursor()
+
+        return self.cursor
 
     def run_query(self, sql):
         """Runs a given SQL query via the global database connection.
@@ -56,6 +68,21 @@ class MySQLDB:
         """
 
         return pd.read_sql_query(sql, self.connection)
+
+    def run_query_with_cursor(self, sql):
+        """Runs a given SQL query via the global database connection.
+
+        :param sql: MySQL query
+        :return: Pandas dataframe containing results
+        """
+
+        cursor = self.get_cursor()
+        cursor.execute(sql)
+
+        results = cursor.fetchall()
+
+        cols = [desc[0] for desc in self.cursor.description]
+        return pd.DataFrame(results, columns=cols)
 
     def mysql_disconnect(self):
         """Closes the MySQL database connection.
