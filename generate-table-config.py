@@ -1,9 +1,5 @@
-import pandas as pd
-import json
 import os
 import argparse
-import csv
-from tqdm import tqdm
 from mysqldb import MySQLDB
 from config import Config
 import time
