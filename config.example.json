@@ -7,11 +7,14 @@
         "db_username": "dbuser",
         "db_password": "dbpass",
         "db_name": "dbname",
-        "tables": {
-            "table1": {
+        "tables": [
+            {
+                "name": "table1",
+                "primary_key": "id",
+                "incremental": false,
                 "last_id": 0,
-                "output": "output/table1.csv"
+                "output": "output/table1.csv",
             }
-        }
+        ]
     }
 }
