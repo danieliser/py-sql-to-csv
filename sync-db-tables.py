@@ -91,7 +91,7 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
         starting_id = last_id
 
         if args.verbose:
-            pbar = tqdm(total=rows_to_extract, desc='Processing table {}'.format(table_name), unit='records')
+            pbar = tqdm(total=rows_to_extract, desc='🤖 Processing table {}'.format(table_name), unit='records')
         else:
             pbar = None
 
@@ -127,7 +127,7 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
         if pbar is not None:
             pbar.close()
 
-    log( 'Finished fetching rows from table.' )
+    log( '✅ Finished fetching rows from table.' )
 
 def verify_csv_file(csv_filename:str, total_rows:int):
     """Verifies that the CSV file has the correct number of rows.
@@ -143,12 +143,12 @@ def verify_csv_file(csv_filename:str, total_rows:int):
     # Get the number of rows in the CSV file without header row
     csv_rows = pd.read_csv(csv_filename).shape[0]
     if csv_rows == total_rows:
-        log( 'CSV file contains all rows from the table.' )
+        log( '✅ CSV file contains all rows from the table.' )
 
         return True
     else:
-        log( 'WARNING: CSV file contains {} rows, but table contains {} rows.'.format(csv_rows, total_rows) )
-        log( 'NOTE: This could be due to data being added to the table while the script is running.' )
+        log( '⚠️ WARNING: CSV file contains {} rows, but table contains {} rows.'.format(csv_rows, total_rows) )
+        log( '👉 NOTE: This could be due to data being added to the table while the script is running.' )
 
         return False
 
@@ -167,7 +167,7 @@ def sync_db(db_name):
     database = MySQLDB(db_info)
 
     try:
-        log( 'Connecting to database {}...'.format(db_name) )
+        log( 'Connecting to database {}...'.format(db_name), blank_line=True )
 
         # Connect to the database
         database.connect()
@@ -178,7 +178,7 @@ def sync_db(db_name):
 
             # Get the total number of rows in the table
             total_rows = database.run_query('SELECT COUNT(*) FROM {}'.format(table_name)).iloc[0,0]
-            log( 'Found total of {} rows in {} table...'.format(total_rows, table_name) )
+            log( 'Found total of {} rows in {} table...'.format(total_rows, table_name), blank_line=True )
 
             # Get last id from stored table info
             last_id = config.get_last_id(db_name, table_name)
@@ -186,15 +186,9 @@ def sync_db(db_name):
             # Print the number of rows that will be extracted
             if last_id:
                 rows_to_extract = database.run_query('SELECT COUNT(*) FROM {} WHERE id > {}'.format(table_name, last_id)).iloc[0,0]
-                log( '- {} new rows to extract...'.format(rows_to_extract) )
+                log( '📑 {} new rows to extract...'.format(rows_to_extract) )
             else:
                 rows_to_extract = total_rows
-
-            # Print the number of rows that will be extracted
-            if rows_to_extract > args.batch_size:
-                log( 'Extracting {} rows in batches of {}...'.format(rows_to_extract, args.batch_size), blank_line=True )
-            else:
-                log( 'Extracting {} rows...'.format(rows_to_extract), blank_line=True )
 
             # Create the output file if it doesn't exist
             create_output_file_if_not_exists(database, table_name)
@@ -205,8 +199,6 @@ def sync_db(db_name):
             # Verify that the CSV file has the correct number of rows
             csv_filename = config.get_output_filename(db_name, table_name, args.output_path)
             verify_csv_file(csv_filename, total_rows)
-
-            log( 'Wrote {} rows to {}...'.format(rows_to_extract, table['output']) )
 
     except Exception as e:
         log( 'ERROR: {}'.format(e) )
@@ -223,4 +215,4 @@ for [db_name, db_info] in config.get_db_configs().items():
     sync_db(db_name)
 
 # Print the total time elapsed
-log( 'DB Tables Successfully Synced. Finished in {} seconds.'.format(time.time() - start_time), force=True )
+log( '✅ DB Tables Successfully Synced. Finished in {} seconds.'.format(time.time() - start_time), force=True, blank_line=True)
