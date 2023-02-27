@@ -108,12 +108,13 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
 
     table_name = table['name']
     primary_key = table['primary_key'] if 'primary_key' in table else 'id'
+    incremental = table['incremental'] if 'incremental' in table else False
 
     # Name of the CSV file to create for this table
     csv_filename = config.get_output_filename(db_name, table_name, args.output_path)
 
     # Get last id from stored table info
-    last_id = config.get_last_id(db_name, table_name)
+    last_id = config.get_last_id(db_name, table_name) if incremental else None
 
     table_schema = get_table_schema(database, table_name)
 
@@ -239,16 +240,17 @@ def sync_db(db_name):
         for table in config.get_db_tables(db_name):
             table_name = table['name']
             primary_key = table['primary_key'] if 'primary_key' in table else 'id'
+            incremental = table['incremental'] if 'incremental' in table else False
 
             # Get the total number of rows in the table
             total_rows = database.run_query('SELECT COUNT(*) FROM {}'.format(table_name)).iloc[0,0]
             log( 'Found total of {} rows in {} table...'.format(total_rows, table_name), blank_line=True )
 
             # Get last id from stored table info
-            last_id = config.get_last_id(db_name, table_name)
+            last_id = incremental and config.get_last_id(db_name, table_name) or None
 
             # Print the number of rows that will be extracted
-            if last_id:
+            if incremental and last_id:
                 # select the max id from the table where the id is greater than the last id
                 last_record_in_db = database.run_query('SELECT MAX({}) as id FROM {} WHERE {} > {}'.format(primary_key, table_name, primary_key, last_id)).iloc[0,0]
                 #if no result
@@ -259,6 +261,12 @@ def sync_db(db_name):
                 log( '📑 {} new rows to extract...'.format(rows_to_extract) )
             else:
                 rows_to_extract = total_rows
+
+            if not incremental:
+                # Delete the CSV file if it exists
+                csv_filename = config.get_output_filename(db_name, table_name, args.output_path)
+                if os.path.exists(csv_filename):
+                    os.remove(csv_filename)
 
             # Create the output file if it doesn't exist
             create_output_file_if_not_exists(database, db_name, table_name)
