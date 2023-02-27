@@ -1,4 +1,5 @@
+__pycache__
 output
 
 config*.json
-__pycache__
+!config.example.json
