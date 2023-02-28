@@ -15,7 +15,7 @@
                 "primary_key": "id",
                 "incremental": false,
                 "last_id": 0,
-                "output": "output/table1.csv",
+                "output": "output/table1.csv"
             }
         ]
     }

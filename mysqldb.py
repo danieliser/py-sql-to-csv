@@ -1,10 +1,47 @@
-import pandas as pd
-from pymysql import connect
+"""MySQL database connection class.
+
+This class is used to connect to a MySQL database via an SSH tunnel. It
+
+can be used to run queries and return the results as a Pandas dataframe.
+
+Example:
+
+    db = MySQLDB(db_info)
+
+    db.connect()
+
+    sql = "SELECT * FROM table"
+    df = db.run_query(sql)
+
+    db.disconnect()
+
+    print(df)
+
+    # Output:
+    #
+    #   id  name
+    # 0  1  John
+    # 1  2  Jane
+
+Attributes:
+    db_info (dict): Dictionary containing database connection information.
+    tunnel (SSHTunnelForwarder): SSH tunnel object.
+    connection (pymysql.Connection): MySQL database connection object.
+    verbose (bool): Whether to print verbose output.
+    cursor (pymysql.Cursor): MySQL cursor object.
+
+Todo:
+    * Add support for SSH key authentication
+"""
+
 import logging
 import sshtunnel
+import pandas as pd
+from pymysql import connect
 from sshtunnel import SSHTunnelForwarder
 
 class MySQLDB:
+    """MySQL database connection class."""
     def __init__(self, db_info, verbose=False):
         self.db_info = db_info
         self.tunnel = None
@@ -13,8 +50,7 @@ class MySQLDB:
         self.cursor = None
 
     def open_ssh_tunnel(self):
-        """Open an SSH tunnel and connect using a username and password.
-        """
+        """Open an SSH tunnel and connect using a username and password."""
 
         db_info = self.db_info
 
@@ -60,7 +96,7 @@ class MySQLDB:
 
         return self.cursor
 
-    def run_query(self, sql):
+    def run_query(self, sql: str):
         """Runs a given SQL query via the global database connection.
 
         :param sql: MySQL query
@@ -69,7 +105,7 @@ class MySQLDB:
 
         return pd.read_sql_query(sql, self.connection)
 
-    def run_query_with_cursor(self, sql):
+    def run_query_with_cursor(self, sql: str):
         """Runs a given SQL query via the global database connection.
 
         :param sql: MySQL query
