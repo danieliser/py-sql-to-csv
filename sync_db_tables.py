@@ -1,50 +1,41 @@
-import pandas as pd
+"""Extracts data from MySQL tables to CSV files."""
+import time
 import os
 import argparse
 import csv
 from tqdm import tqdm
+import pandas as pd
+import pymysql
 from mysqldb import MySQLDB
 from config import Config
-import time
+from logger import Logger
 
-script_start_time = time.time()
-
-total_query_time = 0
-total_write_time = 0
+TOTAL_QUERY_TIME = 0
+TOTAL_WRITE_TIME = 0
 
 # Get the directory where the script is located
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Define the command-line arguments
 parser = argparse.ArgumentParser(description='Extract data from MySQL tables to CSV files.')
-parser.add_argument('-c', '--config', type=str, default=os.path.join(script_dir, 'config.json'), help='the configuration file to use')
-parser.add_argument('-o', '--output-path', type=str, default=os.path.join(script_dir, 'output'), help='the folder to output to')
-parser.add_argument('-v', '--verbose', action='store_true', help='should the script print verbose output')
-parser.add_argument('-d', '--debug', action='store_true', default=True if os.environ.get('PYTHONDEBUG') else False, help='should the script print verbose output')
-parser.add_argument('-b', '--batch-size', type=int, default=1000, help='should the script print verbose output')
+parser.add_argument('-c', '--config', type=str, default=os.path.join(script_dir,
+                    'config.json'), help='the configuration file to use')
+parser.add_argument('-o', '--output-path', type=str,
+                    default=os.path.join(script_dir, 'output'), help='the folder to output to')
+parser.add_argument('-v', '--verbose', action='store_true',
+                    help='should the script print verbose output')
+parser.add_argument('-d', '--debug', action='store_true', default=bool(os.environ.get(
+    'PYTHONDEBUG')), help='should the script print verbose output')
+parser.add_argument('-b', '--batch-size', type=int, default=1000,
+                    help='should the script print verbose output')
 args = parser.parse_args()
-
-# Log messages if verbose is True
-def log(message: str, blank_line: bool = False, force: bool = False, debug: bool = False):
-    """Logs a message if verbose is True.
-
-    Args:
-        message (str): The message to log.
-        verbose (bool): Whether or not to log the message.
-    """
-
-    if debug and not args.debug:
-        return
-
-    if args.verbose or force or (args.debug and debug):
-        if blank_line:
-            print()
-        print(message)
 
 # Open the configuration file and load the database and table information
 config = Config(args.config)
+logger = Logger(verbose=args.verbose, debug=args.debug)
 
-table_schemas = {}
+TABLE_SCHEMAS = {}
+
 
 def get_table_schema(database, table_name):
     """Gets the table schema for the given table name.
@@ -58,25 +49,24 @@ def get_table_schema(database, table_name):
         table_schema (pandas.DataFrame): The schema of the table.
     """
 
-    global table_schemas
-
     # Check if table schema is cached, if yes, return it
-    if table_name in table_schemas:
-        return table_schemas[table_name]
+    if table_name in TABLE_SCHEMAS:
+        return TABLE_SCHEMAS[table_name]
 
     # Get table schema from the database
-    table_schema = database.run_query('DESCRIBE {}'.format(table_name))
+    table_schema = database.run_query(f'DESCRIBE {table_name}')
 
     # Print the table name to the console with new line.
-    log( "".join(['\r\nTable name: ', format( table_name ) ]), debug=True)
+    logger.log("".join(['\r\nTable name: ', format(table_name)]), debug=True)
 
     # Print the fields in comma list to the console
-    log( "".join(['\r\nTable schema:', ', '.join(table_schema['Field'])]), debug=True)
+    logger.log("".join(['\r\nTable schema:', ', '.join(table_schema['Field'])]), debug=True)
 
     # Cache the table schema
-    table_schemas[table_name] = table_schema
+    TABLE_SCHEMAS[table_name] = table_schema
 
     return table_schema
+
 
 def create_output_file_if_not_exists(database, db_name, table_name):
     """Creates the output file if it doesn't exist.
@@ -91,15 +81,19 @@ def create_output_file_if_not_exists(database, db_name, table_name):
         table_schema = get_table_schema(database, table_name)
 
         # Create a CSV file and write the header row, create path if it doesn't exist
-        if not os.path.exists(os.path.dirname(config.get_output_filename(db_name, table_name,  args.output_path))):
-            os.makedirs(os.path.dirname(config.get_output_filename(db_name, table_name, args.output_path)))
+        if not os.path.exists(os.path.dirname(
+                config.get_output_filename(db_name, table_name,  args.output_path))):
+            os.makedirs(os.path.dirname(config.get_output_filename(
+                db_name, table_name, args.output_path)))
 
-        with open(config.get_output_filename(db_name, table_name, args.output_path), 'w', newline='') as csv_file:
+        with open(config.get_output_filename(db_name, table_name, args.output_path),
+                  'w', newline='', encoding="utf8") as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(table_schema['Field'])
             csv_file.close()
 
-def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:int):
+
+def fetch_rows_from_table(database: MySQLDB, db_name: str, table, rows_to_extract: int):
     """Fetches rows from the table and writes them to the CSV file.
 
     Args:
@@ -119,7 +113,7 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
     table_schema = get_table_schema(database, table_name)
 
     # Open CSV file in append mode
-    with open(csv_filename, 'a', newline='') as csv_file:
+    with open(csv_filename, 'a', newline='', encoding="utf8") as csv_file:
         csv_writer = csv.writer(csv_file)
 
         # Set up the initial offset and limit for fetching rows
@@ -131,19 +125,20 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
         cursor = database.get_cursor()
 
         if args.verbose:
-            pbar = tqdm(total=rows_to_extract, desc='🤖 Processing table {}'.format(table_name), unit='records')
+            pbar = tqdm(total=rows_to_extract,
+                        desc=f'🤖 Processing table {table_name}', unit='records')
         else:
             pbar = None
 
         # Loop through the table, fetching rows in chunks and writing them to the CSV file
         while offset < rows_to_extract:
             if starting_id:
-                query = 'SELECT * FROM {} WHERE {} > {} LIMIT {} OFFSET {}'.format(table_name, primary_key, starting_id, limit, offset)
+                query = f'SELECT * FROM {table_name} WHERE {primary_key} > {starting_id} LIMIT {limit} OFFSET {offset}'
             else:
-                query = 'SELECT * FROM {} LIMIT {} OFFSET {}'.format(table_name, limit, offset)
+                query = f'SELECT * FROM {table_name} LIMIT {limit} OFFSET {offset}'
 
             # Print the SQL query
-            log("Executing query: {}".format(query), debug=True)
+            logger.log(f"Executing query: {query}", debug=True)
             cursor.execute(query)
 
             # Loop through the table, fetching rows in chunks and writing them to the CSV file
@@ -154,8 +149,8 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
                 rows = cursor.fetchmany(args.batch_size)
                 end_time = time.time()
 
-                global total_query_time
-                total_query_time += end_time - start_time
+                global TOTAL_QUERY_TIME
+                TOTAL_QUERY_TIME += end_time - start_time
 
                 if not rows:
                     break
@@ -166,8 +161,8 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
                 csv_writer.writerows(rows_list)
                 end_time = time.time()
 
-                global total_write_time
-                total_write_time += end_time - start_time
+                global TOTAL_WRITE_TIME
+                TOTAL_WRITE_TIME += end_time - start_time
 
                 # # Get the last id from the rows
                 last_row = rows[-1]
@@ -191,9 +186,10 @@ def fetch_rows_from_table(database:MySQLDB, db_name:str, table, rows_to_extract:
 
         csv_file.close()
 
-    log( '⏰ Finished fetching rows from table.' )
+    logger.log('⏰ Finished fetching rows from table.')
 
-def verify_csv_file(csv_filename:str, total_rows:int):
+
+def verify_csv_file(csv_filename: str, total_rows: int):
     """Verifies that the CSV file has the correct number of rows.
 
     Args:
@@ -207,12 +203,14 @@ def verify_csv_file(csv_filename:str, total_rows:int):
     # Get the number of rows in the CSV file without header row
     csv_rows = pd.read_csv(csv_filename).shape[0]
     if csv_rows == total_rows:
-        log( '✅ CSV file contains all rows from the table.' )
+        logger.log('✅ CSV file contains all rows from the table.')
 
         return True
     else:
-        log( '⚠️ WARNING: CSV file contains {} rows, but table contains {} rows.'.format(csv_rows, total_rows) )
-        log( '👉 NOTE: This could be due to data being added to the table while the script is running.' )
+        logger.log(
+            f'⚠️ WARNING: CSV file contains {csv_rows} rows, but table contains {total_rows} rows.')
+        logger.log(
+            '👉 NOTE: This could be due to data being added to the table while the script is running.')
 
         return False
 
@@ -231,7 +229,7 @@ def sync_db(db_name):
     database = MySQLDB(db_info)
 
     try:
-        log( 'Connecting to database {}...'.format(db_name), blank_line=True )
+        logger.log(f'Connecting to database {db_name}...', blank_line=True)
 
         # Connect to the database
         database.connect()
@@ -243,8 +241,9 @@ def sync_db(db_name):
             incremental = table['incremental'] if 'incremental' in table else False
 
             # Get the total number of rows in the table
-            total_rows = database.run_query('SELECT COUNT(*) FROM {}'.format(table_name)).iloc[0,0]
-            log( 'Found total of {} rows in {} table...'.format(total_rows, table_name), blank_line=True )
+            total_rows = database.run_query(f'SELECT COUNT(*) FROM {table_name}').iloc[0, 0]
+            logger.log(
+                f'Found total of {total_rows} rows in {table_name} table...', blank_line=True)
 
             # Get last id from stored table info
             last_id = incremental and config.get_last_id(db_name, table_name) or None
@@ -252,13 +251,15 @@ def sync_db(db_name):
             # Print the number of rows that will be extracted
             if incremental and last_id:
                 # select the max id from the table where the id is greater than the last id
-                last_record_in_db = database.run_query('SELECT MAX({}) as id FROM {} WHERE {} > {}'.format(primary_key, table_name, primary_key, last_id)).iloc[0,0]
-                #if no result
+                last_record_in_db = database.run_query(
+                    f'SELECT MAX({primary_key}) as id FROM {table_name} WHERE {primary_key} > {last_id}').iloc[0, 0]
+
+                # if no result
                 if last_record_in_db is None:
                     last_record_in_db = last_id
 
                 rows_to_extract = last_record_in_db - last_id
-                log( '📑 {} new rows to extract...'.format(rows_to_extract) )
+                logger.log(f'📑 {rows_to_extract} new rows to extract...')
             else:
                 rows_to_extract = total_rows
 
@@ -278,8 +279,8 @@ def sync_db(db_name):
             csv_filename = config.get_output_filename(db_name, table_name, args.output_path)
             verify_csv_file(csv_filename, total_rows)
 
-    except Exception as e:
-        log( 'ERROR: {}'.format(e) )
+    except pymysql.Error as error:
+        logger.log(f'ERROR: {error}', force=True, blank_line=True)
 
     finally:
         # Close the database connection
@@ -288,12 +289,31 @@ def sync_db(db_name):
         # Save the config file
         config.save_config()
 
-# Loop through each database and table in the configuration
-for [db_name, db_info] in config.get_db_configs().items():
-    sync_db(db_name)
 
-# Print the total time elapsed
-log( '✅ DB Tables Successfully Synced. Finished in {} seconds.'.format(time.time() - script_start_time), force=True, blank_line=True)
+def main():
+    """The main function.
+    """
 
-log( '📊 Total time taken to fetch rows: {} seconds.'.format(total_query_time), debug=True )
-log( '📊 Total time taken to write to CSV: {} seconds.'.format(total_write_time), debug=True )
+    # Get the start time of the script
+    script_start_time = time.time()
+
+    logger.clear_screen()
+
+    # Print the script start message
+    logger.log('🏁 Starting script...', force=True, blank_line=True)
+
+    # Loop through each database and table in the configuration
+    for [db_name, db_info] in config.get_db_configs().items():
+        sync_db(db_name)
+
+    script_time_elapsed = time.time() - script_start_time
+
+    # Print the total time elapsed
+    logger.log(
+        f'✅ DB Tables Successfully Synced. Finished in {script_time_elapsed} seconds.', force=True, blank_line=True)
+    logger.log(f'📊 Total time taken to fetch rows: {TOTAL_QUERY_TIME} seconds.', debug=True)
+    logger.log('📊 Total time taken to write to CSV: {TOTAL_WRITE_TIME} seconds.', debug=True)
+
+
+if __name__ == '__main__':
+    main()
