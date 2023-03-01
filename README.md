@@ -27,8 +27,8 @@ Currently only MySQL databases are supported, and exported to CSV. If there is i
 1. Clone this repository
 2. Install python dependencies: `pip install -r requirements.txt` or `conda install --file requirements.txt`.
 3. Create a `config.json` file.
-   a. Use the GUI to generate a config file by running `python ./config_editor.py`
-   b. Or copy the `config.example.json` file to `config.json` and edit it to configure your database connections.
+   1. Use the GUI to generate a config file by running `python ./config_editor.py`
+   2. Or copy the `config.example.json` file to `config.json` and edit it to configure your database connections.
 4. Run the tool by calling  `python ./sync-db-tables.py`.
 
 ## Configuration
