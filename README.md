@@ -57,7 +57,7 @@ The configuration file is a JSON file with the following structure:
                     "last_id": 0,
                     "output": "db1/table1.csv",
                 }
-            }
+            ]
         }
     }
 }
