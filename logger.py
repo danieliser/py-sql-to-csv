@@ -11,6 +11,7 @@ Example:
 Attributes:
     verbose (bool): Whether or not to log messages.
     debug (bool): Whether or not to log debug messages.
+    file (str): The file to log to.
 
 Methods:
     log(message: str, blank_line: bool = False, force: bool = False, debug: bool = False):
@@ -23,15 +24,37 @@ Methods:
 Todo:
     * Add a way to log to a file.
 """
+from datetime import datetime
+import os
+
+# ensure file gets written even if script is interrupted
+os.system('stty intr ^-')
+
 
 class Logger:
     """A logger class for use in the data-syncing scripts."""
 
-    def __init__(self, verbose: bool = False, debug: bool = False):
+    def __init__(self, verbose: bool = False, debug: bool = False, file: str = None):
         self.verbose = verbose
         self.debug = debug
+        self.file = file
+        self.logs = []
 
-    def log(self, message: str, blank_line: bool = False, force: bool = False, debug: bool = False):
+    def write_to_log_file(self, message: str):
+        """Writes a message to a log file.
+
+        Args:
+            message (str): The message to write.
+            file (str): The file to write to.
+        """
+
+        if not self.file:
+            return
+
+        with open(self.file, 'a+', encoding="utf8") as logfile:
+            logfile.write(message)
+
+    def log(self, message: str, blank_line: bool = False, force: bool = False, debug: bool = False, type: str = None):
         """Logs a message if verbose is True.
 
         Args:
@@ -39,13 +62,23 @@ class Logger:
             verbose (bool): Whether or not to log the message.
         """
 
-        if debug and not self.debug:
-            return
+        # WARNING/ERROR -> DEBUG -> INFO
+        log_type = 'DEBUG' if debug else type if type else 'INFO'
 
-        if self.verbose or force or (self.debug and debug):
-            if blank_line:
-                print()
-            print(message)
+        try:
+            if debug and not self.debug:
+                return
+
+            if self.verbose or force or (self.debug and debug):
+                if blank_line:
+                    print()
+                print(message)
+        finally:
+
+            # If file logging is enabled, build a message with the current time in log format.
+            if self.file:
+                log_header = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} {log_type}'
+                self.write_to_log_file(f'{log_header}: {message}\n')
 
     def clear_line(self):
         """Clears the current line."""
