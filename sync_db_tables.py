@@ -9,10 +9,9 @@ import pymysql
 from mysqldb import MySQLDB
 from config import Config
 from logger import Logger
+from _version import __version__
 
 # pylint: disable=global-statement
-
-__version__ = "1.0.0"
 
 # Get the directory where the script is located
 script_dir = os.path.dirname(os.path.realpath(__file__))

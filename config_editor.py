@@ -17,17 +17,22 @@ from mysqldb import MySQLDB
 from config import Config
 import inquirer
 from logger import Logger
+from _version import __version__
 
 # Get the directory where the script is located
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Define the command-line arguments
 parser = argparse.ArgumentParser(description='Extract data from MySQL tables to CSV files.')
-# first unnamed argument is the config file
+
 parser.add_argument('-c', '--config', type=str, default=os.path.join(script_dir,
                     'config.json'), help='the configuration file to modify')
+
 parser.add_argument('-o', '--output', type=str, default=os.path.join(script_dir,
                     'output'), help='the folder to output to')
+
+parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __import__(__name__).__package__ + ' ' + __version__)
+
 args = parser.parse_args()
 
 # Setup logger.
@@ -305,6 +310,9 @@ def main():
 
     # Open the configuration file and load the database and table information
     config = get_config()
+
+    if config.config.get('version', 0) < 1:
+        config.update_config('version', __VERSION__)
 
     db_configs = config.get_db_configs()
 
