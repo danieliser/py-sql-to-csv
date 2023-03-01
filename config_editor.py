@@ -311,8 +311,22 @@ def main():
     # Open the configuration file and load the database and table information
     config = get_config()
 
-    if config.config.get('version', 0) < 1:
-        config.update_config('version', __VERSION__)
+    config_version = config.config.get('version', None)
+
+    if config_version is None:
+        config.config['version'] = __version__
+        config.save_config()
+
+    if config_version is not None and config_version > __version__:
+        # TODO: Add a way to update the config file
+        logger.log('Config file version is newer than this version of the program.', type='ERROR')
+        sys.exit(1)
+
+    if config_version is not None and config_version < __version__:
+        logger.log('onfig file version is older than this version of the program.', type='WARNING')
+        # TODO Add a way to update the config file
+        config.config['version'] = __version__
+        config.save_config()
 
     db_configs = config.get_db_configs()
 
