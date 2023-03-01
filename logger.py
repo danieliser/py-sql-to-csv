@@ -54,7 +54,7 @@ class Logger:
         with open(self.file, 'a+', encoding="utf8") as logfile:
             logfile.write(message)
 
-    def log(self, message: str, blank_line: bool = False, force: bool = False, debug: bool = False, type: str = None):
+    def log(self, message: str, blank_line: bool = False, force: bool = False, debug: bool = False, log_type: str = None):
         """Logs a message if verbose is True.
 
         Args:
@@ -63,12 +63,12 @@ class Logger:
         """
 
         # WARNING/ERROR -> DEBUG -> INFO
-        log_type = 'DEBUG' if debug else type if type else 'INFO'
+        message_type = 'DEBUG' if debug else log_type if log_type else 'INFO'
+
+        if debug and not self.debug:
+            return
 
         try:
-            if debug and not self.debug:
-                return
-
             if self.verbose or force or (self.debug and debug):
                 if blank_line:
                     print()
@@ -77,7 +77,9 @@ class Logger:
 
             # If file logging is enabled, build a message with the current time in log format.
             if self.file:
-                log_header = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} {log_type}'
+                log_header = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} {message_type}'
+                if blank_line:
+                    self.logs.append('\n')
                 self.write_to_log_file(f'{log_header}: {message}\n')
 
     def clear_line(self):

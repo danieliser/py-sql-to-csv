@@ -10,29 +10,58 @@ from mysqldb import MySQLDB
 from config import Config
 from logger import Logger
 
-TOTAL_QUERY_TIME = 0
-TOTAL_WRITE_TIME = 0
+# pylint: disable=global-statement
+
+__version__ = "1.0.0"
 
 # Get the directory where the script is located
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Define the command-line arguments
-parser = argparse.ArgumentParser(description='Extract data from MySQL tables to CSV files.')
+parser = argparse.ArgumentParser(description='Extract data from MySQL tables to CSV files.',
+                                 prog='MySQL Sync')
+
 parser.add_argument('-c', '--config', type=str, default=os.path.join(script_dir,
                     'config.json'), help='the configuration file to use')
+
 parser.add_argument('-o', '--output-path', type=str,
                     default=os.path.join(script_dir, 'output'), help='the folder to output to')
-parser.add_argument('-v', '--verbose', action='store_true',
+
+parser.add_argument('--verbose', action='store_true',
                     help='should the script print verbose output')
+
 parser.add_argument('-d', '--debug', action='store_true', default=bool(os.environ.get(
     'PYTHONDEBUG')), help='should the script print verbose output')
-parser.add_argument('-b', '--batch-size', type=int, default=1000,
+
+parser.add_argument('--batch-size', type=int, default=1000,
                     help='should the script print verbose output')
+
+parser.add_argument('-l', '--log', type=str,
+                    help='save logs to a file')
+
+parser.add_argument('--skip-validation', action='store_true', default=False,
+                    help='skip validation of the row counts')
+
+parser.add_argument('--incremental-only', action='store_true', default=False,
+                    help='only run sync on incremental tables')
+
+parser.add_argument('--skip-incremental', action='store_true', default=False,
+                    help='skip incremental tables')
+
+parser.add_argument('--tables', type=str, default=None,
+                    help='comma separated list of tables to sync. ex db1.table1')
+
+parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
+
 args = parser.parse_args()
+
+if args.debug:
+    TOTAL_QUERY_TIME = 0
+    TOTAL_WRITE_TIME = 0
 
 # Open the configuration file and load the database and table information
 config = Config(args.config)
-logger = Logger(verbose=args.verbose, debug=args.debug)
+logger = Logger(verbose=args.verbose, debug=args.debug, file=args.log)
 
 TABLE_SCHEMAS = {}
 
@@ -57,10 +86,10 @@ def get_table_schema(database, table_name):
     table_schema = database.run_query(f'DESCRIBE {table_name}')
 
     # Print the table name to the console with new line.
-    logger.log("".join(['\r\nTable name: ', format(table_name)]), debug=True)
+    logger.log(f'Table Name: {table_name}', debug=True)
 
     # Print the fields in comma list to the console
-    logger.log("".join(['\r\nTable schema:', ', '.join(table_schema['Field'])]), debug=True)
+    logger.log(f"Table schema: {','.join(table_schema['Field'])}", debug=True)
 
     # Cache the table schema
     TABLE_SCHEMAS[table_name] = table_schema
@@ -144,25 +173,34 @@ def fetch_rows_from_table(database: MySQLDB, db_name: str, table, rows_to_extrac
             # Loop through the table, fetching rows in chunks and writing them to the CSV file
             while True:
 
-                # Measure the time taken to fetch rows
-                start_time = time.time()
-                rows = cursor.fetchmany(args.batch_size)
-                end_time = time.time()
+                if args.debug:
+                    # Measure the time taken to fetch rows
+                    start_time = time.time()
 
-                global TOTAL_QUERY_TIME
-                TOTAL_QUERY_TIME += end_time - start_time
+                rows = cursor.fetchmany(args.batch_size)
+
+                if args.debug:
+                    end_time = time.time()
+
+                    global TOTAL_QUERY_TIME
+                    TOTAL_QUERY_TIME += end_time - start_time
 
                 if not rows:
                     break
 
+                if args.debug:
+                    # Set timers for debug mode.
+                    start_time = time.time()
+
                 # Write the rows to the CSV file
-                start_time = time.time()
                 rows_list = [list(row) for row in rows]
                 csv_writer.writerows(rows_list)
-                end_time = time.time()
 
-                global TOTAL_WRITE_TIME
-                TOTAL_WRITE_TIME += end_time - start_time
+                if args.debug:
+                    end_time = time.time()
+
+                    global TOTAL_WRITE_TIME
+                    TOTAL_WRITE_TIME += end_time - start_time
 
                 # # Get the last id from the rows
                 last_row = rows[-1]
@@ -206,16 +244,18 @@ def verify_csv_file(csv_filename: str, total_rows: int):
         logger.log('✅ CSV file contains all rows from the table.')
 
         return True
-    else:
-        logger.log(
-            f'⚠️ WARNING: CSV file contains {csv_rows} rows, but table contains {total_rows} rows.')
-        logger.log(
-            '👉 NOTE: This could be due to data being added to the table while the script is running.')
 
-        return False
+    logger.log(
+        f'⚠️ CSV file contains {csv_rows} rows, but table contains {total_rows} rows.',
+        type='WARNING')
+    logger.log(
+        '👉 This could be due to data being added to the table while the script is running.',
+        type='NOTE')
+
+    return False
 
 
-def sync_db(db_name):
+def sync_db(db_name, tables=None):
     """Syncs a database.
 
     Args:
@@ -240,10 +280,30 @@ def sync_db(db_name):
             primary_key = table['primary_key'] if 'primary_key' in table else 'id'
             incremental = table['incremental'] if 'incremental' in table else False
 
+            if tables and table_name not in tables:
+                continue
+
+            # Print the table name
+            logger.log(f'📄 Processing table {table_name}...', blank_line=True)
+
+            # Skip the table if the --skip_incremental flag is set and the table is incremental
+            if args.skip_incremental and incremental:
+                logger.log(
+                    '👉 Skipping incremental table because --skip_incremental flag was set.',
+                    type='NOTE')
+                continue
+
+            # Skip the table if the --incremental_only flag is set and the table is not incremental
+            if args.incremental_only and not incremental:
+                logger.log(
+                    '👉 Skipping non-incremental table because --incremental_only flag was set.',
+                    type='NOTE')
+                continue
+
             # Get the total number of rows in the table
             total_rows = database.run_query(f'SELECT COUNT(*) FROM {table_name}').iloc[0, 0]
             logger.log(
-                f'Found total of {total_rows} rows in {table_name} table...', blank_line=True)
+                f'👀 Found total of {total_rows} rows in {table_name} table...')
 
             # Get last id from stored table info
             last_id = incremental and config.get_last_id(db_name, table_name) or None
@@ -275,12 +335,13 @@ def sync_db(db_name):
             # Fetch rows from the table and write them to the CSV file
             fetch_rows_from_table(database, db_name, table, rows_to_extract)
 
-            # Verify that the CSV file has the correct number of rows
-            csv_filename = config.get_output_filename(db_name, table_name, args.output_path)
-            verify_csv_file(csv_filename, total_rows)
+            if not args.skip_validation:
+                # Verify that the CSV file has the correct number of rows
+                csv_filename = config.get_output_filename(db_name, table_name, args.output_path)
+                verify_csv_file(csv_filename, total_rows)
 
     except pymysql.Error as error:
-        logger.log(f'ERROR: {error}', force=True, blank_line=True)
+        logger.log(error, force=True, blank_line=True, type='ERROR')
 
     finally:
         # Close the database connection
@@ -302,17 +363,41 @@ def main():
     # Print the script start message
     logger.log('🏁 Starting script...', force=True, blank_line=True)
 
+    # final shape of tables should be { db_name: [table_name, table_name] }
+    tables = {}
+
+    # If the --tables flag is set, parse the tables into a dict
+    if args.tables:
+        # split tables into list of db_name.table_name
+        tables_list = [table.split('.') for table in args.tables.split(',')]
+
+        # loop through each table and add to tables dict
+        for [db_name, table_name] in tables_list:
+            if db_name not in tables:
+                tables[db_name] = []
+
+            tables[db_name].append(table_name)
+
     # Loop through each database and table in the configuration
-    for [db_name, db_info] in config.get_db_configs().items():
-        sync_db(db_name)
+    for [db_name, _db_info] in config.get_db_configs().items():
+        # If args.tables, only sync DB if it's in the tables_list dict, pass tables as second arg
+        if args.tables:
+            if db_name in tables:
+                sync_db(db_name, tables[db_name])
+        else:
+            sync_db(db_name)
 
-    script_time_elapsed = time.time() - script_start_time
+    if args.debug:
+        # Print the total time elapsed
+        logger.log(
+            f'✅ DB Tables Successfully Synced. Finished in {script_time_elapsed} seconds.',
+            force=True, blank_line=True)
+        script_time_elapsed = time.time() - script_start_time
+        logger.log(f'📊 Total time taken to fetch rows: {TOTAL_QUERY_TIME} seconds.', debug=True)
+        logger.log('📊 Total time taken to write to CSV: {TOTAL_WRITE_TIME} seconds.', debug=True)
 
-    # Print the total time elapsed
-    logger.log(
-        f'✅ DB Tables Successfully Synced. Finished in {script_time_elapsed} seconds.', force=True, blank_line=True)
-    logger.log(f'📊 Total time taken to fetch rows: {TOTAL_QUERY_TIME} seconds.', debug=True)
-    logger.log('📊 Total time taken to write to CSV: {TOTAL_WRITE_TIME} seconds.', debug=True)
+    else:
+        logger.log('✅ DB Tables Successfully Synced.', force=True, blank_line=True)
 
 
 if __name__ == '__main__':
