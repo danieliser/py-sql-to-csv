@@ -31,7 +31,7 @@ parser.add_argument('-c', '--config', type=str, default=os.path.join(script_dir,
 parser.add_argument('-o', '--output', type=str, default=os.path.join(script_dir,
                     'output'), help='the folder to output to')
 
-parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __import__(__name__).__package__ + ' ' + __version__)
+parser.add_argument('-v', '--version', action='version', version='py-mysql-sync ' + __version__)
 
 args = parser.parse_args()
 
@@ -182,7 +182,9 @@ def build_db_table_configs(db_name):
             inquirer.List('select_columns',
                           message='Select columns to add to config:',
                           choices=['All', 'Selected'],
-                          default='All')
+                          default='All'),
+            inquirer.Path('output_path', message='Select output path:', path_type='dir',
+                            default=args.output)
         ])
 
         db_tables = []
@@ -214,7 +216,7 @@ def build_db_table_configs(db_name):
                 'incremental': False,
                 'incremental_column': incremental_column,
                 'last_id': 0,
-                'output': f'{db_name}/{table}.csv',
+                'output': f"{table_qa['output_path']}/{db_name}/{table}.csv",
             })
 
     except pymysql.err.DatabaseError as err:
@@ -319,11 +321,11 @@ def main():
 
     if config_version is not None and config_version > __version__:
         # TODO: Add a way to update the config file
-        logger.log('Config file version is newer than this version of the program.', type='ERROR')
+        logger.log('Config file version is newer than this version of the program.', log_type='ERROR')
         sys.exit(1)
 
     if config_version is not None and config_version < __version__:
-        logger.log('onfig file version is older than this version of the program.', type='WARNING')
+        logger.log('onfig file version is older than this version of the program.', log_type='WARNING')
         # TODO Add a way to update the config file
         config.config['version'] = __version__
         config.save_config()

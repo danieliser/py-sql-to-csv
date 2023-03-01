@@ -246,10 +246,10 @@ def verify_csv_file(csv_filename: str, total_rows: int):
 
     logger.log(
         f'⚠️ CSV file contains {csv_rows} rows, but table contains {total_rows} rows.',
-        type='WARNING')
+        log_type='WARNING')
     logger.log(
         '👉 This could be due to data being added to the table while the script is running.',
-        type='NOTE')
+        log_type='NOTE')
 
     return False
 
@@ -289,14 +289,14 @@ def sync_db(db_name, tables=None):
             if args.skip_incremental and incremental:
                 logger.log(
                     '👉 Skipping incremental table because --skip_incremental flag was set.',
-                    type='NOTE')
+                    log_type='NOTE')
                 continue
 
             # Skip the table if the --incremental_only flag is set and the table is not incremental
             if args.incremental_only and not incremental:
                 logger.log(
                     '👉 Skipping non-incremental table because --incremental_only flag was set.',
-                    type='NOTE')
+                    log_type='NOTE')
                 continue
 
             # Get the total number of rows in the table
@@ -340,7 +340,7 @@ def sync_db(db_name, tables=None):
                 verify_csv_file(csv_filename, total_rows)
 
     except pymysql.Error as error:
-        logger.log(error, force=True, blank_line=True, type='ERROR')
+        logger.log(error, force=True, blank_line=True, log_type='ERROR')
 
     finally:
         # Close the database connection
