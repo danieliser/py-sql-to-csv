@@ -121,7 +121,7 @@ def create_output_file_if_not_exists(database, db_name, table_name):
             csv_file.close()
 
 
-def fetch_rows_from_table(database: MySQLDB, db_name: str, table, rows_to_extract: int):
+def fetch_rows_from_table(database: MySQLDB, db_name: str, table, rows_to_extract: int, where: str =None):
     """Fetches rows from the table and writes them to the CSV file.
 
     Args:
@@ -158,12 +158,21 @@ def fetch_rows_from_table(database: MySQLDB, db_name: str, table, rows_to_extrac
         else:
             pbar = None
 
+        query_select = f'SELECT * FROM {table_name}'
+
+        query_where = 'WHERE 1=1'
+
+        if where:
+            query_where += f' AND {where}'
+
+        query_limits = f' LIMIT {limit} OFFSET {offset}'
+
         # Loop through the table, fetching rows in chunks and writing them to the CSV file
         while offset < rows_to_extract:
             if starting_id:
-                query = f'SELECT * FROM {table_name} WHERE {primary_key} > {starting_id} LIMIT {limit} OFFSET {offset}'
-            else:
-                query = f'SELECT * FROM {table_name} LIMIT {limit} OFFSET {offset}'
+                query_where += f' AND {primary_key} > {starting_id}'
+
+            query = f'{query_select} {query_where} {query_limits}'
 
             # Print the SQL query
             logger.log(f"Executing query: {query}", debug=True)
@@ -279,6 +288,12 @@ def sync_db(db_name, tables=None):
             primary_key = table['primary_key'] if 'primary_key' in table else 'id'
             incremental = table['incremental'] if 'incremental' in table else False
 
+            query_where = 'WHERE 1=1'
+
+            if table['where']:
+                where = table['where']
+                query_where += f' AND {where}'
+
             if tables and table_name not in tables:
                 continue
 
@@ -300,7 +315,7 @@ def sync_db(db_name, tables=None):
                 continue
 
             # Get the total number of rows in the table
-            total_rows = database.run_query(f'SELECT COUNT(*) FROM {table_name}').iloc[0, 0]
+            total_rows = database.run_query(f'SELECT COUNT(*) FROM {table_name} {query_where}').iloc[0, 0]
             logger.log(
                 f'👀 Found total of {total_rows} rows in {table_name} table...')
 
@@ -311,7 +326,7 @@ def sync_db(db_name, tables=None):
             if incremental and last_id:
                 # select the max id from the table where the id is greater than the last id
                 last_record_in_db = database.run_query(
-                    f'SELECT MAX({primary_key}) as id FROM {table_name} WHERE {primary_key} > {last_id}').iloc[0, 0]
+                    f'SELECT MAX({primary_key}) as id FROM {table_name} {query_where} AND {primary_key} > {last_id}').iloc[0, 0]
 
                 # if no result
                 if last_record_in_db is None:
@@ -332,7 +347,7 @@ def sync_db(db_name, tables=None):
             create_output_file_if_not_exists(database, db_name, table_name)
 
             # Fetch rows from the table and write them to the CSV file
-            fetch_rows_from_table(database, db_name, table, rows_to_extract)
+            fetch_rows_from_table(database, db_name, table, rows_to_extract, where=where)
 
             if not args.skip_validation:
                 # Verify that the CSV file has the correct number of rows

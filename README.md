@@ -14,6 +14,7 @@ Currently only MySQL databases are supported, and exported to CSV. If there is i
 * Supports multiple databases and tables.
 * Supports syncing same table multiple times with different filters.
 * Supports SSH tunneling to remote databases.
+* Support for custom WHERE clause for each synced table.
 * Post sync validation of row counts.
 * GUI tool to generate & update configs.
 
