@@ -160,6 +160,9 @@ def build_db_table_configs(db_name):
 
     # Create a MySQLDB object
     database = MySQLDB(db_info)
+    
+    # Initialize db_tables outside try/except to prevent UnboundLocalError
+    db_tables = []
 
     try:
         logger.log(f'Connecting to database {db_name}...')
@@ -169,25 +172,33 @@ def build_db_table_configs(db_name):
 
         # Get the tables in the database
         tables = database.run_query('SHOW TABLES')
+        
+        if hasattr(tables, 'values'):
+            table_list = tables.values
+        else:
+            table_list = []
 
         # Display the checkbox list for each table
         print(f'\nTables in database {db_name}:')
+
+        if len(table_list) == 0:
+            print("No tables found in database")
+            return db_tables
+
+        checkbox_choices = [(table[0], table[0]) for table in table_list]
 
         # Prompt the user to select tables
         table_qa = inquirer.prompt([
             inquirer.Checkbox('tables',
                               message='Select tables to add to config:',
-                              choices=[(table[0], table[0]) for table in tables.values],
+                              choices=checkbox_choices,
                               default=None),
             inquirer.List('select_columns',
                           message='Select columns to add to config:',
                           choices=['All', 'Selected'],
                           default='All'),
-            inquirer.Path('output_path', message='Select output path:', path_type='dir',
-                            default=args.output)
+            inquirer.Text('output_path', message='Output path:', default=args.output)
         ])
-
-        db_tables = []
 
         # Generate output for each selected table and add to the config file
         for table in table_qa['tables']:
@@ -219,7 +230,7 @@ def build_db_table_configs(db_name):
                 'output': f"{table_qa['output_path']}/{db_name}/{table}.csv",
             })
 
-    except pymysql.err.DatabaseError as err:
+    except Exception as err:
         logger.log(f'ERROR: {err}')
 
     finally:
@@ -274,10 +285,16 @@ def update_db_config(db_name):
 
         if action == 'Update connection info':
             db_info = build_db_config()
-            db_info['tables'] = get_config().get_database_info(db_name)['tables']
+            # Safely get existing tables or default to empty list
+            existing_tables = get_config().get_database_info(db_name).get('tables', [])
+            db_info['tables'] = existing_tables
 
         elif action == 'Add tables':
             db_info = get_config().get_database_info(db_name)
+            
+            # Ensure tables key exists in db_info
+            if 'tables' not in db_info:
+                db_info['tables'] = []
 
             # Inquire if user needs to add tables from this database to the config
             write_mode = inquirer.list_input('Append tables to existing config or overwrite?',
@@ -320,13 +337,11 @@ def main():
         config.save_config()
 
     if config_version is not None and config_version > __version__:
-        # TODO: Add a way to update the config file
         logger.log('Config file version is newer than this version of the program.', log_type='ERROR')
         sys.exit(1)
 
     if config_version is not None and config_version < __version__:
-        logger.log('onfig file version is older than this version of the program.', log_type='WARNING')
-        # TODO Add a way to update the config file
+        logger.log('Config file version is older than this version of the program.', log_type='WARNING')
         config.config['version'] = __version__
         config.save_config()
 
